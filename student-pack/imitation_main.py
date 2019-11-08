@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from imitation_learner import *
-from policy_model import PolicyModel
+from policy_model import ActorCritic
 import ipdb
 import torch
 
@@ -16,12 +16,12 @@ def main():
     #device = 'cpu'
     print("The device is " + str(device))
 
-    build_master_file = True #compiles data from each level
+    build_master_file = False #compiles data from each level
     play_recording = False #plays video of all states
     batch_size = 32 #batch_size of data in trainging
     train_fraction = 0.7 #proportion of data used for training
     lr = 0.001 #learning rate of the model
-    num_epochs = 10 #number of times data is used in training
+    num_epochs = 50 #number of times data is used in training
 
 ########################################################################
 
@@ -40,7 +40,7 @@ def main():
 
 ########################################################################
 
-    policy_model = PolicyModel(84*84*3, 4).to(device) #initialize the policy object
+    policy_model = ActorCritic(4).to(device) #initialize the policy object
     policy_model = train_model(policy_model, lr, train_loader, test_loader, device, num_epochs = num_epochs) #train the model
 
 ########################################################################

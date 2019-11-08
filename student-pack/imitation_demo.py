@@ -18,7 +18,7 @@ def main():
     print("The device is " + str(device))
     starting_floor = 0
     total_floors = 9
-    max_steps = 100000
+    max_steps = 1000
     override_threshold = 1000
 
 ########################################################################

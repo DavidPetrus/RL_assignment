@@ -6,12 +6,13 @@ import gym
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.distributions import Normal
 import matplotlib.pyplot as plt
+from collections import deque
 import ipdb
 from torch.distributions import Categorical
 from utils import im2vid, change_resolution
+from imitation_learner import unstuck_agent
+from colour_segmentation import colour_scoring
 ########################################################################
 def compute_gae(next_value, rewards, masks, values, gamma=0.99, tau=0.95):
 
@@ -53,7 +54,9 @@ def ppo_update(optimizer, model, ppo_epochs, mini_batch_size, states, actions, l
     while True:
         for state, action, old_log_probs, return_, advantage in get_batch(mini_batch_size, states, actions, log_probs, returns, advantages):
 
-            dist, value = model(state.reshape(-1, 3, 84, 84))
+            outputs, value = model(state.reshape(-1, 3, 84, 84))
+            probs = nn.Softmax(dim = -1)(outputs)
+            dist  = Categorical(logits = probs)
             entropy = dist.entropy().mean()
             new_log_probs = dist.log_prob(action)
 
@@ -79,7 +82,8 @@ def ppo_update(optimizer, model, ppo_epochs, mini_batch_size, states, actions, l
 ########################################################################
 
 def train(env, model, gamma, max_epochs, batch_size, epochs_before_printing,
-mini_batch_size, ppo_epochs, policy_actions, device, optimizer, max_steps_in_demo_episode, show_demo):
+mini_batch_size, ppo_epochs, policy_actions, device, optimizer, max_steps_in_demo_episode,
+show_demo, override_threshold):
 
     """
     Runs episodes to create trajectories, updates model with PPO.
@@ -98,14 +102,32 @@ mini_batch_size, ppo_epochs, policy_actions, device, optimizer, max_steps_in_dem
         masks     = []
         entropy   = 0
 
+        previous_time = 0 #for colour scoring
+        state_memory = deque(maxlen = 4) #for unstuck agent
+        state_memory.append(state) #so that the memory has something
+
         #generate the trajectory
         for _ in range(batch_size):
+            state_cpu = state.copy()
             state = torch.FloatTensor(state).to(device).reshape(3, 84, 84).unsqueeze(0)
-            dist, value = model(state)
-
+            outputs, value = model(state)
+            probs = nn.Softmax(dim = -1)(outputs)
+            dist  = Categorical(logits = probs)
             action = dist.sample()
+
+            action = unstuck_agent(state_memory, state_cpu, action.item(), policy_actions, device, override_threshold = override_threshold) #unstuck the agent if stuck
+            action = torch.Tensor(np.array([action])).to(device)
+
             env_action = policy_actions[int(action.detach().cpu().numpy())]
             next_state, reward, done, _ = env.step(env_action)
+
+            #for colour scoring - can comment this out to disable colour scoring
+            previous_time, scores = colour_scoring(next_state, previous_time = previous_time)
+            # if scores.sum() > 0:
+            #     print((scores * 100000000).astype(np.uint8))
+            #     plt.imshow(next_state)
+            #     plt.show()
+            reward += scores.sum()
 
             log_prob = dist.log_prob(action)
             entropy += dist.entropy().mean()
@@ -117,11 +139,8 @@ mini_batch_size, ppo_epochs, policy_actions, device, optimizer, max_steps_in_dem
             states.append(state.flatten().unsqueeze(0))
             actions.append(action.unsqueeze(0))
 
+            state_memory.append(state_cpu)
             state = next_state
-
-            # if done: #if episode finished then we want to reset env
-            #     state = env.reset()
-            #     """question -  do we want to let samples from diff episodes in 1 batch"""
 
         #calculate the return
         next_state = torch.FloatTensor(next_state).to(device).reshape(3, 84, 84).unsqueeze(0)
@@ -166,7 +185,9 @@ def run_episode(model, env, policy_actions, max_steps_in_demo_episode, show_demo
 
     while True:
         state = torch.FloatTensor(state).reshape(3, 84, 84).unsqueeze(0).to(device)
-        dist, _ = model(state)
+        outputs, value = model(state)
+        probs = nn.Softmax(dim = -1)(outputs)
+        dist  = Categorical(logits = probs)
         action = dist.sample()
         next_state, reward, done, info = env.step(policy_actions[int(action.detach().cpu().numpy())])
         if show_demo:

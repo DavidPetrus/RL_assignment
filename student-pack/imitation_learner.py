@@ -110,12 +110,13 @@ def train_model(policy_model, lr, train_loader, test_loader, device, num_epochs)
             optimizer.zero_grad()
 
             inputs, labels = data
-            outputs = policy_model.act(inputs.float().to(device))
+            outputs, value = policy_model(inputs.float().to(device))
+            probs = nn.Softmax(dim = -1)(outputs)
+            dist  = Categorical(logits = probs)
             loss = criterion(outputs, labels.to(device))
-
             loss.backward()
             optimizer.step()
-            #print(policy_model.conv1.weight.data.sum())
+
             steps += 1
 
         if epoch % 100 == 0:
@@ -153,8 +154,9 @@ def get_accuracy(policy_model, data_loader_object, device):
     with torch.no_grad():
         for data in data_loader_object:
             images, labels = data
-            outputs = policy_model.act(images.float().to(device))
-            _, predicted = torch.max(outputs.data, 1)
+            outputs, value = policy_model(images.float().to(device))
+            probs = nn.Softmax(dim = -1)(outputs)
+            _, predicted = torch.max(probs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels.to(device)).sum().item()
 
@@ -197,14 +199,14 @@ def imitation_play(env, policy_model, device, max_steps = 1000, override_thresho
 
     while not done and steps < max_steps:
 
-        outputs = policy_model.act(torch.Tensor(state.reshape(3, 84, 84)).unsqueeze(0).to(device)) #scores from linear layer in NN
+        outputs, value = policy_model(torch.Tensor(state.reshape(3, 84, 84)).unsqueeze(0).to(device)) #scores from linear layer in NN
         outputs += torch.Tensor(np.random.normal(0, 1, outputs.shape[0])).to(device) #add noise for exploration
         probs = nn.Softmax(dim = 1)(outputs) #convert outputs to probabilites
-        distribution = Categorical(probs) #make the policy a distribution
-        unmapped_action = distribution.sample() #get an action from the distribution
-        action = action_map[unmapped_action.item()] #lookup the action so that the correct action is passed to unity
-        action = unstuck_agent(state_memory, state.reshape(3, 84, 84), action, action_map, override_threshold = override_threshold) #unstuck the agent if stuck
-
+        dist = Categorical(probs) #make the policy a distribution
+        unmapped_action = dist.sample() #get an action from the distribution
+        #lookup the action so that the correct action is passed to unity
+        action = unstuck_agent(state_memory, state.reshape(3, 84, 84), unmapped_action.item(), action_map, device, override_threshold = override_threshold) #unstuck the agent if stuck
+        action = action_map[action]
         next_state, reward, done, info = env.step(action)
 
         previous_time, scores = colour_scoring(next_state, previous_time = previous_time) #for colour scoring
@@ -268,7 +270,7 @@ def merge_recordings(write = False):
         rewards.to_csv(os.path.join('recordings','rewards.csv'), index = False)
         print("Created master recording file.")
 ########################################################################
-def unstuck_agent(state_memory, state, action, action_map, override_threshold = 100):
+def unstuck_agent(state_memory, state, action, action_map, device, override_threshold = 100):
     """
     Force more exploration when the agent is stuck.
     Iterate over the frames in the frame memory and determine how much the state has changed.
@@ -278,11 +280,10 @@ def unstuck_agent(state_memory, state, action, action_map, override_threshold = 
 
     frame_similarity = 0
     for frame in state_memory:
-        frame_similarity += np.abs(frame - state).sum() + np.abs(frame - state).sum()
-    #print(frame_similarity)
+        frame_similarity += np.abs(frame - state).sum()
 
     if frame_similarity < override_threshold * len(state_memory): #if stuck the frame difference will be very similar
-        return action_map[np.random.randint(0, len(action_map.keys()))] #choose random action
+        return np.random.randint(0, len(action_map.keys())) #choose random action
 
     return action
 

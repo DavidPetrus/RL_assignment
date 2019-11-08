@@ -60,7 +60,6 @@ class ActorCritic(nn.Module):
         x = x.view(-1, 64 * 7 * 7)
         x = self.linear1(x)
         value = self.critic(x)
-        probs = nn.Softmax(dim = -1)(self.actor(x).sum(dim = 0))
-        dist  = Categorical(logits = probs)
-        return dist, value
+        outputs = self.actor(x)#.sum(dim = 0)
+        return outputs, value
 ########################################################################
