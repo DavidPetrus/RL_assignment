@@ -102,7 +102,7 @@ show_demo, override_threshold):
         masks     = []
         entropy   = 0
 
-        previous_time = 0 #for colour scoring
+        previous_time = 160 #for colour scoring
         state_memory = deque(maxlen = 4) #for unstuck agent
         state_memory.append(state) #so that the memory has something
 
@@ -123,10 +123,12 @@ show_demo, override_threshold):
 
             #for colour scoring - can comment this out to disable colour scoring
             previous_time, scores = colour_scoring(next_state, previous_time = previous_time)
-            # if scores.sum() > 0:
-            #     print((scores * 100000000).astype(np.uint8))
-            #     plt.imshow(next_state)
-            #     plt.show()
+
+            if scores[0] + scores[1] + scores[3] > 0:
+                print((scores * 100000000).astype(np.uint8))
+                plt.imshow(next_state)
+                plt.show()
+                ipdb.set_trace()
             reward += scores.sum()
 
             log_prob = dist.log_prob(action)

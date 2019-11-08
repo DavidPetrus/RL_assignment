@@ -36,7 +36,7 @@ override_threshold = 2000 #score used to determine if agent is stuck
 
 #deep learning setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = ActorCritic(len(policy_actions)).to(device)
+#model = ActorCritic(len(policy_actions)).to(device)
 model = unpickle_object('policy_model')
 optimizer = optim.Adam(model.parameters(), lr = learning_rate)
 ########################################################################
