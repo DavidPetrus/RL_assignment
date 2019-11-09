@@ -13,14 +13,14 @@ Setup parameters.
 
 #learning parameters
 gamma = 0.99
-learning_rate = 0.1
+learning_rate = 0.001
 
 #batch update parameters
 max_epochs = 500 #number of batches to create
-batch_size = 300 #number of steps in one batch
-mini_batch_size = 100 #how many steps are used to update the loss
-ppo_epochs = 3 #number of batches to sample in ppo update || min_batch * ppo_epoch = batch_size recommended
-epochs_before_printing = 10 #number of steps at which we print update
+batch_size = 500 #number of steps in one batch
+mini_batch_size = 250 #how many steps are used to update the loss
+ppo_epochs = 2 #number of batches to sample in ppo update || min_batch * ppo_epoch = batch_size recommended
+epochs_before_printing = 5 #number of steps at which we print update
 
 #demo information
 show_demo = True #whether or not to make a video of the current progress

@@ -62,12 +62,10 @@ def colour_scoring(img, previous_time = 0.1):
 
     #if the time has gone up we can give reward otherwise zero
     matches['time_diff'] = 0
-    if matches['time'] + 10 <= previous_time or matches['time'] == 100:
+    if matches['time'] - 10 <= previous_time or matches['time'] == 100:
         matches['time_diff'] = 0
     else:
         matches['time_diff'] = (matches['time'] - previous_time)/weights['time']
-    if matches['time_diff'] >0:
-        ipdb.set_trace()
 
     #weight the matches
     scores = np.array([
