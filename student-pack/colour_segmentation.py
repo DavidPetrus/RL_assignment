@@ -29,7 +29,8 @@ def colour_segmentation(img, object_key_word, threshold_factor, give_pic = False
     subtracted_mean_image = np.abs(channel_image - object_colour_dict[object_key_word])
     matches = np.where(np.where(subtracted_mean_image < threshold, 1, 0).sum(axis = 1) == 3, 1, 0)
     matches = matches.reshape(img.shape[0], img.shape[1])
-
+    if object_key_word == 'globe' and matches.sum() > 0:
+        ipdb.set_trace()
     #filter for matches
     if give_pic: #either return a new image or just the matches
         new_image = img.copy()
@@ -54,13 +55,17 @@ def colour_scoring(img, previous_time = 0.1):
     #retrieve the matching colours from the images
     scores = np.array([])
     matches = {}
-    matches['globe'] = colour_segmentation(img, 'globe', 1, give_pic = False).sum()
+    matches['globe'] = colour_segmentation(img, 'globe', 0.5, give_pic = False).sum()
     matches['green_door'] = colour_segmentation(img, 'green_door', 0.25, give_pic = False).sum()
     matches['next_level'] = colour_segmentation(img, 'next_level', 0.5, give_pic = False).sum()
     matches['time'] = colour_segmentation(img, 'time', 0.5, give_pic = False).sum()
 
     #if the time has gone up we can give reward otherwise zero
-    matches['time_diff'] = 0 if matches['time'] <= previous_time else (matches['time'] - previous_time)/weights['time']
+    matches['time_diff'] = 0
+    if matches['time'] - 10 <= previous_time or matches['time'] == 100:
+        matches['time_diff'] = 0
+    else:
+        matches['time_diff'] = (matches['time'] - previous_time)/weights['time']
 
     #weight the matches
     scores = np.array([

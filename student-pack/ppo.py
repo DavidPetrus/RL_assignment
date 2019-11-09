@@ -58,17 +58,28 @@ def ppo_update(optimizer, model, ppo_epochs, mini_batch_size, states, actions, l
             probs = nn.Softmax(dim = -1)(outputs)
             dist  = Categorical(logits = probs)
             entropy = dist.entropy().mean()
-            new_log_probs = dist.log_prob(action)
+            new_log_probs = dist.log_prob(action.squeeze(1))
 
-            ratio = (new_log_probs - old_log_probs).exp()
-            surr1 = ratio * advantage
-            surr2 = torch.clamp(ratio, 1.0 - clip_param, 1.0 + clip_param) * advantage
+            ratio = (new_log_probs - old_log_probs.squeeze(1)).exp()
+            surr1 = ratio * advantage.squeeze(1)
+            surr2 = torch.clamp(ratio, 1.0 - clip_param, 1.0 + clip_param) * advantage.squeeze(1)
+
+            """
+            Clipping the critic loss
+            """
+
+
+
+
+            """
+            Not clipping the critic loss
+            """
 
             actor_loss  = - torch.min(surr1, surr2).mean()
             critic_loss = (return_ - value).pow(2).mean()
-
+            """why is the loss negative"""  
             loss = 0.5 * critic_loss + actor_loss - 0.001 * entropy
-
+            #loss = loss * -1
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -89,8 +100,9 @@ show_demo, override_threshold):
     Runs episodes to create trajectories, updates model with PPO.
     """
 
-    state = env.reset()
+
     epoch = 0
+    state = env.reset()
 
     while True:
 
@@ -101,8 +113,10 @@ show_demo, override_threshold):
         rewards   = []
         masks     = []
         entropy   = 0
+        steps = 0
 
-        previous_time = 0 #for colour scoring
+
+        previous_time = 160 #for colour scoring
         state_memory = deque(maxlen = 4) #for unstuck agent
         state_memory.append(state) #so that the memory has something
 
@@ -123,11 +137,24 @@ show_demo, override_threshold):
 
             #for colour scoring - can comment this out to disable colour scoring
             previous_time, scores = colour_scoring(next_state, previous_time = previous_time)
-            # if scores.sum() > 0:
+
+            # if scores[0] + scores[1] + scores[3] > 0:
             #     print((scores * 100000000).astype(np.uint8))
             #     plt.imshow(next_state)
             #     plt.show()
+            #     ipdb.set_trace()
+            reward = reward * 10
+            # reset = False
+            # if reward> 0:
+            #     print("steps to episode: " + str(steps))
+            #     steps = 0
+            #     print('\n')
+            #
+            #     reset = True
             reward += scores.sum()
+
+            if reward < 0:
+                ipdb.set_trace()
 
             log_prob = dist.log_prob(action)
             entropy += dist.entropy().mean()
@@ -141,6 +168,10 @@ show_demo, override_threshold):
 
             state_memory.append(state_cpu)
             state = next_state
+            steps+= 1
+            # if reset:
+            #     state = env.reset()
+            #     steps = 0
 
         #calculate the return
         next_state = torch.FloatTensor(next_state).to(device).reshape(3, 84, 84).unsqueeze(0)
@@ -155,13 +186,14 @@ show_demo, override_threshold):
         advantage = returns - values
         epoch += 1
 
+
         loss, optimizer = ppo_update(optimizer, model, ppo_epochs, mini_batch_size, states, actions, log_probs, returns, advantage)
 
         #play an episode to see how we are doing
         if epoch%epochs_before_printing == 0:
             print("Number of epochs: " + str(epoch) + " | Reward: " + str(np.sum(rewards)) + " | loss " + str(loss))
             if show_demo:
-                im2vid(run_episode(model, env, policy_actions, max_steps_in_demo_episode, show_demo, device), 'video ' + str(epoch) + ' epochs')
+                im2vid(run_episode(model, env, state, policy_actions, max_steps_in_demo_episode, show_demo, device), 'video ' + str(epoch) + ' epochs')
                 #state = env.reset()
 
         #return the model when done
@@ -170,7 +202,7 @@ show_demo, override_threshold):
 
 ########################################################################
 
-def run_episode(model, env, policy_actions, max_steps_in_demo_episode, show_demo, device):
+def run_episode(model, env, state, policy_actions, max_steps_in_demo_episode, show_demo, device):
 
     """
     Run an episode in order to test how well we are doing.
@@ -179,7 +211,7 @@ def run_episode(model, env, policy_actions, max_steps_in_demo_episode, show_demo
     """
 
     steps = 0
-    state = env.reset()
+    #state = env.reset()
     done = False
     total_reward = 0
 

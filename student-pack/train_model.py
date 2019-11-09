@@ -13,14 +13,14 @@ Setup parameters.
 
 #learning parameters
 gamma = 0.99
-learning_rate = 0.1
+learning_rate = 0.001
 
 #batch update parameters
 max_epochs = 500 #number of batches to create
-batch_size = 300 #number of steps in one batch
-mini_batch_size = 100 #how many steps are used to update the loss
-ppo_epochs = 3 #number of batches to sample in ppo update || min_batch * ppo_epoch = batch_size recommended
-epochs_before_printing = 10 #number of steps at which we print update
+batch_size = 500 #number of steps in one batch
+mini_batch_size = 250 #how many steps are used to update the loss
+ppo_epochs = 2 #number of batches to sample in ppo update || min_batch * ppo_epoch = batch_size recommended
+epochs_before_printing = 5 #number of steps at which we print update
 
 #demo information
 show_demo = True #whether or not to make a video of the current progress
@@ -36,7 +36,7 @@ override_threshold = 2000 #score used to determine if agent is stuck
 
 #deep learning setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = ActorCritic(len(policy_actions)).to(device)
+#model = ActorCritic(len(policy_actions)).to(device)
 model = unpickle_object('policy_model')
 optimizer = optim.Adam(model.parameters(), lr = learning_rate)
 ########################################################################
