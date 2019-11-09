@@ -148,7 +148,7 @@ def save_file_as_csv(states, actions, rewards, keys):
 
     print("The files were saved to csv")
 ########################################################################
-def create_env(starting_floor = 0, total_floors = 10):
+def create_env(starting_floor = 0, total_floors = 10, worker_id = 1):
     """
     Here we set up the environement according to the assignment instructions.
     The total floors is update by one if equal to starting floor.
@@ -161,6 +161,7 @@ def create_env(starting_floor = 0, total_floors = 10):
               'lighting-type': 0, 'visual-theme': 0, 'default-theme': 0, 'agent-perspective': 1, 'allowed-rooms': 0,
               'allowed-modules': 0,
               'allowed-floors': 0,
+              'worker_id': worker_id
               }
     env = ObstacleTowerEnv('./ObstacleTower/obstacletower', worker_id=1, docker_training=False, retro=True,realtime_mode=False,config=config)
     env.seed(1)
