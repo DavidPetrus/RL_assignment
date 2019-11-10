@@ -27,11 +27,12 @@ def compute_gae(next_value, rewards, masks, values, gamma=0.99, tau=0.95):
         delta = rewards[step] + gamma * values[step + 1] * masks[step] - values[step]
         gae = delta + gamma * tau * masks[step] * gae
         returns.insert(0, gae + values[step])
+        
     return returns
 
 ########################################################################
 
-def get_batch(mini_batch_size, states, actions, log_probs, returns, advantage):
+def get_batch(mini_batch_size, states, actions, log_probs, values, returns, advantage):
 
     """
     Retrieve a mini-batch of data to do batch updates.
@@ -40,11 +41,11 @@ def get_batch(mini_batch_size, states, actions, log_probs, returns, advantage):
     batch_size = states.size(0)
     for _ in range(batch_size // mini_batch_size):
         ids = np.random.randint(0, batch_size, mini_batch_size)
-        yield states[ids, :], actions[ids], log_probs[ids], returns[ids, :], advantage[ids, :]
+        yield states[ids, :], actions[ids], log_probs[ids], values[ids], returns[ids, :], advantage[ids, :]
 
 ########################################################################
 
-def ppo_update(optimizer, model, ppo_epochs, mini_batch_size, states, actions, log_probs, returns, advantages, clip_param=0.2):
+def ppo_update(optimizer, model, ppo_epochs, mini_batch_size, states, actions, log_probs, values, returns, advantages, clip_param=0.2):
 
     """
     Update the ActorCritic model using the PPO algorithm.
@@ -52,34 +53,38 @@ def ppo_update(optimizer, model, ppo_epochs, mini_batch_size, states, actions, l
 
     batches_complete = 0
     while True:
-        for state, action, old_log_probs, return_, advantage in get_batch(mini_batch_size, states, actions, log_probs, returns, advantages):
+        for state, action, old_log_probs, old_values, return_, advantage in get_batch(mini_batch_size, states, actions, log_probs, values, returns, advantages):
 
-            outputs, value = model(state.reshape(-1, 3, 84, 84))
+            outputs, value = model(state.reshape(-1, 3, 84, 336))
             probs = nn.Softmax(dim = -1)(outputs)
             dist  = Categorical(logits = probs)
             entropy = dist.entropy().mean()
             new_log_probs = dist.log_prob(action.squeeze(1))
 
             ratio = (new_log_probs - old_log_probs.squeeze(1)).exp()
-            surr1 = ratio * advantage.squeeze(1)
-            surr2 = torch.clamp(ratio, 1.0 - clip_param, 1.0 + clip_param) * advantage.squeeze(1)
+            
+            surr1 = -advantage.squeeze(1) * ratio
+            surr2 = -advantage.squeeze(1) * torch.clamp(ratio, 1.0 - clip_param, 1.0 + clip_param)
 
             """
             Clipping the critic loss
             """
-
-
-
+            clippedvalue = old_values + torch.clamp(value - old_values, -clip_param, clip_param)
+            clippedvalue = (clippedvalue - return_).pow(2)
 
             """
             Not clipping the critic loss
             """
+            unclippedvalue = (value - return_).pow(2)
 
-            actor_loss  = - torch.min(surr1, surr2).mean()
-            critic_loss = (return_ - value).pow(2).mean()
-            """why is the loss negative"""  
-            loss = 0.5 * critic_loss + actor_loss - 0.001 * entropy
-            #loss = loss * -1
+            actor_loss  = torch.max(surr1, surr2).mean()
+            critic_loss = 0.5 * torch.max(clippedvalue, unclippedvalue).mean()
+
+            loss =  actor_loss + 0.75 * critic_loss - 0.001 * entropy
+            
+            #ipdb.set_trace()
+            
+            #loss = loss * -1s
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -100,30 +105,47 @@ show_demo, override_threshold):
     Runs episodes to create trajectories, updates model with PPO.
     """
 
-
     epoch = 0
+    
+    dequelen = 4
+    
+    statedeque = deque(maxlen = dequelen)
+    nextstatedeque = deque(maxlen = dequelen)
     state = env.reset()
-
+    statest = np.copy(state)
+    
+    for i in range(0, 4):
+        statedeque.append(state) #initialising
+    
+    for i in range(0, 4):
+        nextstatedeque.append(state)
+    
+    for frame in range(0, dequelen -1): #deque appends new frames to the right
+        state = np.vstack((state, statedeque[frame])) #append all frames except the most recent
+    
     while True:
 
         log_probs = []
         values    = []
         states    = []
+        viewstate = []
         actions   = []
         rewards   = []
         masks     = []
         entropy   = 0
         steps = 0
 
-
         previous_time = 160 #for colour scoring
         state_memory = deque(maxlen = 4) #for unstuck agent
-        state_memory.append(state) #so that the memory has something
-
+        state_memory.append(statest) #so that the memory has something
+    
         #generate the trajectory
         for _ in range(batch_size):
-            state_cpu = state.copy()
-            state = torch.FloatTensor(state).to(device).reshape(3, 84, 84).unsqueeze(0)
+                                
+            state_cpu = statest.copy()
+            
+            state = torch.FloatTensor(state).to(device).reshape(3, 84, 336).unsqueeze(0)
+            
             outputs, value = model(state)
             probs = nn.Softmax(dim = -1)(outputs)
             dist  = Categorical(logits = probs)
@@ -134,6 +156,13 @@ show_demo, override_threshold):
 
             env_action = policy_actions[int(action.detach().cpu().numpy())]
             next_state, reward, done, _ = env.step(env_action)
+            
+            statest = np.copy(next_state)
+            
+            nextstatedeque.append(next_state)
+            
+            for frame in range(0, dequelen - 1):
+                next_state = np.vstack((next_state, nextstatedeque[frame]))
 
             #for colour scoring - can comment this out to disable colour scoring
             previous_time, scores = colour_scoring(next_state, previous_time = previous_time)
@@ -164,21 +193,27 @@ show_demo, override_threshold):
             rewards.append(reward)
             masks.append(1-done)
             states.append(state.flatten().unsqueeze(0))
+            viewstate.append(statest)
             actions.append(action.unsqueeze(0))
 
             state_memory.append(state_cpu)
             state = next_state
+            
             steps+= 1
             # if reset:
             #     state = env.reset()
             #     steps = 0
 
         #calculate the return
-        next_state = torch.FloatTensor(next_state).to(device).reshape(3, 84, 84).unsqueeze(0)
+        
+        next_state = torch.FloatTensor(next_state).to(device).reshape(3, 84, 336).unsqueeze(0)
+        
         _, next_value = model(next_state)
-        returns = compute_gae(next_value, rewards, masks, values, gamma)
-
+        
+        returns   = compute_gae(next_value, rewards, masks, values, gamma)
         returns   = torch.cat(returns).detach()
+        returns   = (returns - returns.mean())/(returns.std() + 1e-4)
+        
         log_probs = torch.cat(log_probs).detach()
         values    = torch.cat(values).detach()
         states    = torch.cat(states)
@@ -186,8 +221,7 @@ show_demo, override_threshold):
         advantage = returns - values
         epoch += 1
 
-
-        loss, optimizer = ppo_update(optimizer, model, ppo_epochs, mini_batch_size, states, actions, log_probs, returns, advantage)
+        loss, optimizer = ppo_update(optimizer, model, ppo_epochs, mini_batch_size, states, actions, log_probs, values, returns, advantage)
 
         #play an episode to see how we are doing
         if epoch%epochs_before_printing == 0:
@@ -216,7 +250,7 @@ def run_episode(model, env, state, policy_actions, max_steps_in_demo_episode, sh
     total_reward = 0
 
     while True:
-        state = torch.FloatTensor(state).reshape(3, 84, 84).unsqueeze(0).to(device)
+        state = torch.FloatTensor(state).reshape(3, 84, 336).unsqueeze(0).to(device)
         outputs, value = model(state)
         probs = nn.Softmax(dim = -1)(outputs)
         dist  = Categorical(logits = probs)

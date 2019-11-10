@@ -1,4 +1,8 @@
-########################################################################
+import os
+
+os.chdir("C:\\Users\\Korstiaan\\Desktop\\Computer Science\\F\\RL_assignment-master\\student-pack")
+
+#########################################################################
 from ppo import train
 from dummy_env import DummyEnv
 from recorder import create_env
@@ -6,7 +10,7 @@ import torch
 import torch.optim as optim
 from policy_model import ActorCritic
 from imitation_learner import unpickle_object
-########################################################################
+#########################################################################
 """
 Setup parameters.
 """
@@ -23,22 +27,22 @@ ppo_epochs = 2 #number of batches to sample in ppo update || min_batch * ppo_epo
 epochs_before_printing = 5 #number of steps at which we print update
 
 #demo information
-show_demo = True #whether or not to make a video of the current progress
+show_demo = False #whether or not to make a video of the current progress
 max_steps_in_demo_episode = 200 #number of steps to show in demo episode
 
 #environement parameters
 starting_floor = 0
 total_floors = 1
 worker_id = 1
-env = create_env(starting_floor, total_floors, worker_id = worker_id)
+env = create_env(starting_floor, total_floors)
 #env = DummyEnv()
 policy_actions = unpickle_object('action_map') #map going grom actions to env actions
 override_threshold = 2000 #score used to determine if agent is stuck
 
 #deep learning setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#model = ActorCritic(len(policy_actions)).to(device)
-model = unpickle_object('policy_model')
+model = ActorCritic(len(policy_actions)).to(device)
+#model = unpickle_object('policy_model')
 optimizer = optim.Adam(model.parameters(), lr = learning_rate)
 ########################################################################
 """
