@@ -160,10 +160,9 @@ def create_env(starting_floor = 0, total_floors = 10, worker_id = 1):
     config = {'starting-floor': starting_floor, 'total-floors': total_floors, 'dense-reward': 1,
               'lighting-type': 0, 'visual-theme': 0, 'default-theme': 0, 'agent-perspective': 1, 'allowed-rooms': 0,
               'allowed-modules': 0,
-              'allowed-floors': 0,
-              'worker_id': worker_id
+              'allowed-floors': 0
               }
-    env = ObstacleTowerEnv('./ObstacleTower/obstacletower', worker_id=1, docker_training=False, retro=True,realtime_mode=False,config=config)
+    env = ObstacleTowerEnv('./ObstacleTower/obstacletower', worker_id=worker_id, docker_training=False, retro=True,realtime_mode=False,config=config)
     env.seed(1)
     #_ = env.reset()
     return env
