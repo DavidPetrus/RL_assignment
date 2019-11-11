@@ -8,6 +8,7 @@ import torch
 import ipdb
 from torch.utils.data import Dataset
 from torch.distributions import Categorical
+
 ########################################################################
 class PolicyModel(nn.Module):
     """
@@ -26,7 +27,7 @@ class PolicyModel(nn.Module):
         self.linear1 = nn.Linear(64 * 7 * 7, 512)
         self.linear2 = nn.Linear(512, action_size)
 
-    def act(self, x):
+    def forward(self, x):        
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
@@ -34,6 +35,7 @@ class PolicyModel(nn.Module):
         x = F.relu(self.linear1(x))
         x = self.linear2(x)
         return x
+
 ########################################################################
 class ActorCritic(nn.Module):
     """
@@ -49,7 +51,7 @@ class ActorCritic(nn.Module):
         self.conv1 = nn.Conv2d(3, 32, 8, stride=4)
         self.conv2 = nn.Conv2d(32, 64, 4, stride=2)
         self.conv3 = nn.Conv2d(64, 64, 3, stride=1)
-        self.linear1 = nn.Linear(64 * 7 * 7, 512)
+        self.linear1 = nn.Linear(64 * 7 * 38, 512)
         self.actor = nn.Linear(512, action_size)
         self.critic = nn.Linear(512, 1)
 
@@ -57,7 +59,7 @@ class ActorCritic(nn.Module):
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
-        x = x.view(-1, 64 * 7 * 7)
+        x = x.view(-1,  64 * 7 * 38)
         x = self.linear1(x)
         value = self.critic(x)
         outputs = self.actor(x)#.sum(dim = 0)
