@@ -27,7 +27,7 @@ class PolicyModel(nn.Module):
         self.linear1 = nn.Linear(64 * 7 * 38, 512)
         self.linear2 = nn.Linear(512, action_size)
 
-    def act(self, x):
+    def forward(self, x):        
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
@@ -35,7 +35,11 @@ class PolicyModel(nn.Module):
         x = F.relu(self.linear1(x))
         x = self.linear2(x)
         return x
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> william
 ########################################################################
 class ActorCritic(nn.Module):
     """

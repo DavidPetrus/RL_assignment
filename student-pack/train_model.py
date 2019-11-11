@@ -1,8 +1,5 @@
-import os
-
-os.chdir("C:\\Users\\Korstiaan\\Desktop\\Computer Science\\F\\RL_assignment-master\\student-pack")
-
 #########################################################################
+from comet_ml import Experiment
 from ppo import train
 from dummy_env import DummyEnv
 from recorder import create_env
@@ -17,10 +14,10 @@ Setup parameters.
 
 #learning parameters
 gamma = 0.99
-learning_rate = 0.001
+learning_rate = 0.0001
 
 #batch update parameters
-max_epochs = 500 #number of batches to create
+max_epochs = 5e6 #number of batches to create
 batch_size = 500 #number of steps in one batch
 mini_batch_size = 250 #how many steps are used to update the loss
 ppo_epochs = 2 #number of batches to sample in ppo update || min_batch * ppo_epoch = batch_size recommended
@@ -34,8 +31,7 @@ max_steps_in_demo_episode = 200 #number of steps to show in demo episode
 starting_floor = 0
 total_floors = 1
 worker_id = 1
-env = create_env(starting_floor, total_floors)
-#env = DummyEnv()
+env = create_env(starting_floor, total_floors, worker_id)
 policy_actions = unpickle_object('action_map') #map going grom actions to env actions
 override_threshold = 2000 #score used to determine if agent is stuck
 
@@ -48,8 +44,9 @@ optimizer = optim.Adam(model.parameters(), lr = learning_rate)
 """
 Train the model.
 """
+experiment = Experiment(api_key="47QJ41M89a6zNXZgS9sY6NQfI", project_name="unity", workspace="wbarich")
 
 model = train(env, model, gamma, max_epochs, batch_size, epochs_before_printing,
 mini_batch_size, ppo_epochs, policy_actions, device, optimizer, max_steps_in_demo_episode,
-show_demo, override_threshold)
+show_demo, override_threshold, experiment)
 ########################################################################
