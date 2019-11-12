@@ -26,20 +26,22 @@ class PolicyModel(nn.Module):
         self.conv3 = nn.Conv2d(64, 64, 3, stride=1)
         self.linear1 = nn.Linear(64 * 7 * 38, 512)
         self.linear2 = nn.Linear(512, action_size)
+        self.bn1 = torch.nn.BatchNorm2d(32)
+        self.bn2 = torch.nn.BatchNorm2d(64)
+        self.bn3 = torch.nn.BatchNorm2d(64)
 
-    def forward(self, x):        
+    def forward(self, x):
         x = F.relu(self.conv1(x))
+        x = self.bn1(x)
         x = F.relu(self.conv2(x))
+        x = self.bn2(x)
         x = F.relu(self.conv3(x))
+        x = self.bn3(x)
         x = x.view(-1, 64 * 7 * 38)
         x = F.relu(self.linear1(x))
         x = self.linear2(x)
         return x
-<<<<<<< HEAD
-    
-=======
 
->>>>>>> william
 ########################################################################
 class ActorCritic(nn.Module):
     """
